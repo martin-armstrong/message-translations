@@ -6,8 +6,8 @@
 // @author       Martin Armstrong
 // @match        https://github.com/orgs/*/teams/*
 // @grant        none
-// @updateURL     https://github.com/martin-armstrong/message-translations/raw/master/MessageTranslations.user.js
-// @downloadURL   https://github.com/martin-armstrong/message-translations/raw/master/MessageTranslations.user.js
+// @updateURL     https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
+// @downloadURL   https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
 //
 //
 // ==/UserScript==
