@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MessageTranslations
 // @namespace    http://hmrc.gov.uk
-// @version      1.0
+// @version      1.1
 // @description  Dashboard showing all english/welsh messages found in play framework repos owned by your team and where any gaps are.
 // @author       Martin Armstrong
 // @match        https://github.com/orgs/*/teams/*
@@ -9,6 +9,7 @@
 // @updateURL     https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
 // @downloadURL   https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
 //
+// 1.1 - Adds option to export known welsh translations to CSV file.
 //
 // ==/UserScript==
 
@@ -45,6 +46,7 @@ var repoExclusions = [
   /sbt-service-manager/
 ];
 
+//has entries of the form repoName:{status:{label:"All Welsh present", number:0, colour:"#c8ffb8"}, messages:[{key:"some.key", english:"some english message", welsh:""}]}
 var repoData = {}
 
 //load props from json in url property matching appName
@@ -132,9 +134,9 @@ function Status(label, number, colour) {
 
 var STATUS = {
   NO_MESSAGES:new Status("No messages", 0, "#edfbe8"),
-  OK:new Status("All Welsh present", 0, "#c8ffb8"),
-  WELSH_GAPS:new Status("Some Welsh missing", 1, "#F3F7A1"),
-  NO_WELSH:new Status("No Welsh found", 2, "#f9c1af")
+  OK:new Status("All Welsh present", 1, "#c8ffb8"),
+  WELSH_GAPS:new Status("Some Welsh missing", 2, "#F3F7A1"),
+  NO_WELSH:new Status("No Welsh found", 3, "#f9c1af")
 }
 
 
@@ -154,16 +156,23 @@ function renderHeaderDiv(parentNode) {
     html += '<span class="key-cell" style="background-color:'+STATUS.NO_WELSH.colour+';">'+STATUS.NO_WELSH.label+'</span>';
     html += '</div>';
 
+
+    html += "<div class=\"pull-right\">"
+    html += "<a class=\"export-as-csv link-hover\" id=\"export-as-csv\" href=\"#\">CSV Export</a>"
+    html += '<div id=\"expand-all\" class=\"link-hover\">Expand All</div>';
+    html += '<div id=\"collapse-all\" class=\"link-hover\">Collapse All</div>';
     html += '<img id="'+DOM_ID.REFRESH_BUTTON+'" title="Reload" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGmSURBVFhH7ZY5SgRBFEDHTBFz9wVF8SyCgSIiegEXNFE8iomRgeIaiMtNXHKNXUHcfa+ZgmZAe7GhQefBY6iiquvXdHX9X6lTJyOduICneI6P+ITX1b4V7MbCacd1fMXPBB2zgR1YCKP4gD78GbdxCoewGRuxFydwEx3j2Fscx0AIMBNL+I5O3MMBTKILd9A5HziPkjkAd+7ib+i7zcoiOtcgxjBTAL6/e3RCnsUDc+gzbqq/qQPwwDl4P2r9jgMMi6cKwHfoX+dh6rcjB/EFa03E79yBnva81C4aN5FjdKCfWilcogEMRq0SCKe/JWr9EdyMm3JzpeC1bQAXUasEZtAAjqJWAg78zrzsovNno1YCtYvGzYMJ7AVN06b1ROIL/vYqbsBD9FlrdqQhLB4SiAklL6voM6wNWu1IQwjAFGoqNS9YF2TBnbt4SOcjmJoQgFhMGIRtX0cPJuE7D3+7i5tbMhEPQCyr7tA+M+QWTmIfNqGXzDBOo6c9lGTOybTzn7BAsdBMW5R64NqwcKwVlvEEr9CS3Ov1DL1k/M4Lq4br/AcqlS/NoqKCkW1vxQAAAABJRU5ErkJggg=="> ';
+    html += "</div></br>"
 
-    html += '<div id=\"expand-all\" class=\"link-hover\">Expand All</div><div id=\"collapse-all\" class=\"link-hover\">Collapse All</div>';
 
-    html += '<div><div class="message-key message-header">Repo / Key</div><div class="message-english message-header">English</div><div class="message-welsh message-header">Welsh</div></div>';
+    html += '<div class=\"message-header\">';
+    html += '<div class="message-key">Repo / Key</div><div class="message-english">English</div><div class="message-welsh">Welsh</div>';
     html += '</div>';
     html += '</span>';
     html += '</div>';
    div.innerHTML = html;
    parentNode.appendChild(div);
+    //document.getelementById('export-as-csv').onclick = actionHandler;
 }
 
 function setHeaderText(text) {
@@ -180,7 +189,7 @@ function renderStyleTag(parentNode) {
     styleText += ".my-header {height:60px;}";
     styleText += ".repo-messages {font-weight:normal;}";
     styleText += ".repo-message {width:100%; border-top:1px solid grey;}";
-    styleText += ".message-header {font-weight:bold;}";
+    styleText += ".message-header {font-weight:bold; width:100%; float:left;}";
     styleText += ".message-key {display:inline-block; width:25%; vertical-align:top; padding-left:5px;}";
     styleText += ".message-english {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}";
     styleText += ".message-welsh {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}";
@@ -188,9 +197,11 @@ function renderStyleTag(parentNode) {
     styleText += ".link-hover:hover {cursor:pointer; color:blue;}";
     styleText += "#key {margin-left:15px; margin-right:10px; float:right;}";
 
-    styleText += "#"+DOM_ID.REFRESH_BUTTON+" {float:right;width:20px;position:relative;cursor:pointer;margin:0px 10px 0px 5px;}";
-    styleText += "#expand-all {display:inline-block; margin-right:20px; float:right; text-decoration:underline;}";
-    styleText += "#collapse-all {display:inline-block; margin-right:20px; float:right; text-decoration:underline;}";
+    styleText += ".pull-right {display:inline-block;vertical-align:top;float:right;}";
+    styleText += ".export-as-csv {display:hidden; color:inherit; margin-right:20px; vertical-align:top; text-decoration:underline;}";
+    styleText += "#"+DOM_ID.REFRESH_BUTTON+" {width:20px;position:relative;cursor:pointer;margin:0px 10px 0px 5px;}";
+    styleText += "#expand-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}";
+    styleText += "#collapse-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}";
 
   style.innerText = styleText;
   parentNode.appendChild(style);
@@ -228,6 +239,8 @@ function render() {
     //clear any existing rows
     const contentDiv = document.getElementById(DOM_ID.CONTENT);
     contentDiv.innerHTML = "";
+
+    document.getElementById('export-as-csv').style.display = "inline-block";
 
     eachRepo((repoName, data)=>{
         renderRepo(contentDiv, data);
@@ -273,7 +286,56 @@ function showRepoMessages(repoName) {
     }
 }
 
+
+function csvField(str) {
+  return '"' + str.replace(/\"/g, '""') + '"';
+}
+
+function exportAsCSVClickHandler(evt) {
+  const targetLink = evt.target;
+
+  const consolidatedMessages = {};
+  for(var [repoName, data] of Object.entries(repoData)) {
+    for(var [k, newMessage] of Object.entries(data.messages)) {
+      const current = consolidatedMessages["QQ"+newMessage.english] || {count:0, key:"", english:"", welsh:""};
+      consolidatedMessages["QQ"+newMessage.english] = {
+          count : current.count+1,
+          key : newMessage.key,
+          english : newMessage.english,
+          welsh : newMessage.welsh || current.welsh
+      };
+    }
+  }
+
+  const sortedMessagesWithWelsh = Object.entries(consolidatedMessages).map(
+      (entry)=>{return entry[1]}
+  ).filter(
+      (message)=>{return message.welsh.length>0}
+  ).sort(
+      (a,b)=>{return a.english.localeCompare(b.english)}
+  );
+
+
+  const csvLines = sortedMessagesWithWelsh.map(message=> {
+    return `${message.key},${message.count},${csvField(message.english)},${csvField(message.welsh)}`;
+  });
+
+  csvLines.unshift("Key,Count,English,Welsh");
+
+  const csv = csvLines.join("\n");
+  const blob = new Blob([csv], {type : 'text/csv'});
+  var objectUrl = window.webkitURL.createObjectURL(blob);
+  var filename = 'MessageTranslations.csv';
+
+  targetLink.download = filename;
+  targetLink.href = objectUrl;
+
+  //now let the default anchor behaviour do its thing and navigate to our csv content
+}
+
+
 function actionHandler(evt) {
+    evt.stopPropagation();
     const el = evt.target;
     if(el.className.includes("toggle")) {
       const repoName = el.dataset.repoName;
@@ -289,7 +351,12 @@ function actionHandler(evt) {
           hideRepoMessages(repoName);
         });
     }
-    else return true;
+    else if(el.id=="export-as-csv") {
+        exportAsCSVClickHandler(evt);
+    }
+    else {
+        return true;
+    }
 }
 
 
@@ -491,6 +558,8 @@ function init(){
             return codeLines;
         })
     }
+
+
 
 init();
 
