@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MessageTranslations
 // @namespace    http://hmrc.gov.uk
-// @version      1.1
+// @version      1.2
 // @description  Dashboard showing all english/welsh messages found in play framework repos owned by your team and where any gaps are.
 // @author       Martin Armstrong
 // @match        https://github.com/orgs/*/teams/*
@@ -9,18 +9,19 @@
 // @updateURL     https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
 // @downloadURL   https://github.com/martin-armstrong/message-translations/raw/main/MessageTranslations.user.js
 //
-// 1.1 - Adds option to export known welsh translations to CSV file.
 //
 // ==/UserScript==
+// 1.2 - updates to match GitHub html/json changes.
+// 1.1 - Adds option to export known welsh translations to CSV file.
 
-var teamServiceMessages = (function(){
+const teamServiceMessages = (function(){
 
-var appName = "message-translations";
-var parentClass = "message-translations";
+const appName = "message-translations";
+const parentClass = "message-translations";
 
 var orgName = ""
 var teamName = "";
-var repoExclusions = [
+const repoExclusions = [
   /app-config-.+/,
   /.+test/,
   /.+tests/,
@@ -112,18 +113,25 @@ function findReposForTeam(org, team, nextPageUrl, callback){ //https://github.co
 
 //adds a 'Message Translations' tab in your github team view
 function addTabLink(orgName, teamName) {
+  const div = document.createElement("div");
+  div.className = "Button";
+
   const a = document.createElement("a");
   if(location.href.indexOf(appName)>-1) {
-    a.className="UnderlineNav-item no-wrap selected";
+    a.className="Button Button--iconOnly Button--secondary Button--medium AppHeader-button color-fg-muted";
   }
   else {
-    a.className="UnderlineNav-item no-wrap";
+    a.className="Button Button--iconOnly Button--secondary Button--medium AppHeader-button color-fg-muted";
   }
   a.id = appName+"-link";
   a.innerHTML = 'Message Translations';
   a.style.cursor = "pointer";
-  a.href="/orgs/"+orgName+"/teams/"+teamName+"/repositories?"+appName
-  document.querySelector("nav.UnderlineNav-body[role='navigation']").append(a);
+    a.style.padding = "0px 4px 0px 4px";
+  a.href="#";
+  a.addEventListener("click", actionHandler);
+
+  div.append(a);
+  document.querySelector("div.AppHeader-actions").append(a);
 }
 
 function Status(label, number, colour) {
@@ -132,7 +140,7 @@ function Status(label, number, colour) {
   this.colour=colour;
 }
 
-var STATUS = {
+const STATUS = {
   NO_MESSAGES:new Status("No messages", 0, "#edfbe8"),
   OK:new Status("All Welsh present", 1, "#c8ffb8"),
   WELSH_GAPS:new Status("Some Welsh missing", 2, "#F3F7A1"),
@@ -186,7 +194,7 @@ function renderStyleTag(parentNode) {
     styleText += ".repo-popup-heading {font-weight:bold;  display:inline-block; min-width:200px; margin-bottom:10px}";
     styleText += ".key-cell {padding:0px 3px 0px 3px;}";
     styleText += ".repo {font-weight:bold; border-top:2px solid black; padding-left:5px;}";
-    styleText += ".my-header {height:60px;}";
+    styleText += ".my-header {height:85px;}";
     styleText += ".repo-messages {font-weight:normal;}";
     styleText += ".repo-message {width:100%; border-top:1px solid grey;}";
     styleText += ".message-header {font-weight:bold; width:100%; float:left;}";
@@ -354,6 +362,10 @@ function actionHandler(evt) {
     else if(el.id=="export-as-csv") {
         exportAsCSVClickHandler(evt);
     }
+    else if(el.id==appName+"-link") {
+        window.location.assign("/orgs/"+orgName+"/teams/"+teamName+"/repositories?"+appName);
+        evt.preventDefault();
+    }
     else {
         return true;
     }
@@ -414,9 +426,10 @@ function filteredRepoNames(repoNames) {
 function init(){
   setOrgAndTeamFromLocation();
   addTabLink(orgName, teamName);
+  console.log(`location currently: ${location.href}`);
   if(location.href.indexOf(appName)>-1) {
     //unselect 'Repositories' nav link
-    document.querySelector("a[class='UnderlineNav-item no-wrap selected']").className="UnderlineNav-item no-wrap";
+    document.querySelector("a#repositories-tab").className="UnderlineNav-item no-wrap js-responsive-underlinenav-item js-selected-navigation-item";
 
     //hide repositories content
     document.querySelector("div.js-check-all-container").style.display="none";
@@ -532,30 +545,24 @@ function init(){
     }
 
     //parses text from given github source page url, returns promise for subscribing to asynch page parsing response
-    function parseTextFileLinesFromGitHub(sourcePageUrl) {
-        const codeLineRegexPattern = 'class="blob-code blob-code-inner js-file-line">(.*?)</td>';
-        const codeLineTDRegex = new RegExp(codeLineRegexPattern, 'g');
-        const codeLineRegex = new RegExp(codeLineRegexPattern);
-
-
+    function parseTextFileLinesFromGitHub(sourcePageUrl, debug) {
 
         return fetch(sourcePageUrl, {credentials: "include", redirect: "follow"})
         .then(response => response.text())
         .then(responseText => {
-            //parse the page source and extract all code lines, which can be found with css selector td.blob-code
-            //this is because the raw url can't be accessed due to Content-Security-Polocy
-            //class="blob-code blob-code-inner js-file-line">        port = 9982</td>
-
-            var codeLineTableCells = responseText.match(codeLineTDRegex) || [];
-            var codeLines = codeLineTableCells.map(codeLine=>{
-                var textLine = codeLine.match(codeLineRegex)[1].trim();
-                if(textLine.startsWith("<span")) {
-                    textLine = textLine.replace(/<span[^>]+>/g, '').replace(/<\/span[^>]*>/g, '').replace(/\n/g, '');
+            var responseJson = {};
+            var rows = [];
+            try{
+                responseJson = JSON.parse(responseText);
+                try {
+                    rows = responseJson.payload.blob.rawLines;
+                } catch(error) {
+                    console.error(`payload.blob.rawLines array not found in json response from ${sourcePageUrl}.  ${error}`)
                 }
-                textLine = textLine.replace(/&quot;/g, '"').replace(/&#39;/g, '\'');
-                return textLine;
-            });
-            return codeLines;
+            } catch {
+                console.warn(`Response from ${sourcePageUrl} is not json.`);
+            }
+            return rows;
         })
     }
 
