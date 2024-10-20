@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MessageTranslations
 // @namespace    http://hmrc.gov.uk
-// @version      1.3
+// @version      2.0
 // @description  Dashboard showing all english/welsh messages found in play framework repos owned by your team and where any gaps are.
 // @author       Martin Armstrong
 // @match        https://github.com/orgs/*/teams/*
