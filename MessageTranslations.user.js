@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MessageTranslations
 // @namespace    http://hmrc.gov.uk
-// @version      1.2
+// @version      1.3
 // @description  Dashboard showing all english/welsh messages found in play framework repos owned by your team and where any gaps are.
 // @author       Martin Armstrong
 // @match        https://github.com/orgs/*/teams/*
@@ -11,6 +11,9 @@
 //
 //
 // ==/UserScript==
+// 2.0 - 20/10/2024 - GitHub html/json compatibility updates. Add message count totals, file links and CSS tweaks.
+//
+// Earlier versions no longer compatible with GitHub...
 // 1.2 - updates to match GitHub html/json changes.
 // 1.1 - Adds option to export known welsh translations to CSV file.
 
@@ -47,7 +50,15 @@ const repoExclusions = [
   /sbt-service-manager/
 ];
 
-//has entries of the form repoName:{status:{label:"All Welsh present", number:0, colour:"#c8ffb8"}, messages:[{key:"some.key", english:"some english message", welsh:""}]}
+/*
+has entries of the form..
+repoName:{
+ status:{label:"All Welsh present", number:0, colour:"#c8ffb8"},
+ en:{fileName:"messages.en", count:87},
+ cy:{fileName:"messages.cy", count:87},
+ messages:[{key:"some.key", english:"some english message", welsh:""}]
+}
+*/
 var repoData = {}
 
 //load props from json in url property matching appName
@@ -96,10 +107,12 @@ function findReposForTeam(org, team, nextPageUrl, callback){ //https://github.co
       var repoNames = responseText.match(new RegExp('data-bulk-actions-id="([^"]+)"',"gmi")) || [];
       var nextLink = responseText.match(new RegExp('href="([^"]+)">Next<',"gmi")) || [];
       repoNames = repoNames.map(htmlAtt=>htmlAtt.substring('data-bulk-actions-id="'.length, htmlAtt.length-1));
+      repoNames = repoNames.sort();
       if(nextLink.length>0 && nextLink[0].length>13) {
           nextLink = nextLink[0].substring(6, nextLink[0].length-7);
           findReposForTeam(org, team, nextLink, function(moreRepoNames){
             repoNames = [].concat(repoNames).concat(moreRepoNames);
+            repoNames = repoNames.sort();
             repoNames.forEach(repoName=>console.log("Found repoName: "+repoName));
             if(typeof callback=="function") callback(repoNames);
           })
@@ -189,27 +202,39 @@ function setHeaderText(text) {
 
 function renderStyleTag(parentNode) {
   const style = document.createElement("style");
-  var styleText = ".repo-popup {box-shadow: 5px 5px 20px 0px;z-index:100; position:fixed; left:40%; top:30%; padding:10px 20px 20px 20px; background-color:white; border:1px grey solid; font-size:16px}";
-    styleText += ".repo-popup-close {color:red; margin-left:10px; cursor:pointer}";
-    styleText += ".repo-popup-heading {font-weight:bold;  display:inline-block; min-width:200px; margin-bottom:10px}";
-    styleText += ".key-cell {padding:0px 3px 0px 3px;}";
-    styleText += ".repo {font-weight:bold; border-top:2px solid black; padding-left:5px;}";
-    styleText += ".my-header {height:85px;}";
-    styleText += ".repo-messages {font-weight:normal;}";
-    styleText += ".repo-message {width:100%; border-top:1px solid grey;}";
-    styleText += ".message-header {font-weight:bold; width:100%; float:left;}";
-    styleText += ".message-key {display:inline-block; width:25%; vertical-align:top; padding-left:5px;}";
-    styleText += ".message-english {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}";
-    styleText += ".message-welsh {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}";
-    styleText += ".toggle {}";
-    styleText += ".link-hover:hover {cursor:pointer; color:blue;}";
-    styleText += "#key {margin-left:15px; margin-right:10px; float:right;}";
+  var styleText = `
+     .repo-popup {
+        box-shadow: 5px 5px 20px 0px;
+        z-index:100;
+        position:fixed;
+        left:40%;
+        top:30%;
+        padding:10px 20px 20px 20px;
+        background-color:white;
+        border:1px grey solid;
+        font-size:16px
+     }
+     .repo-popup-close {color:red; margin-left:10px; cursor:pointer}
+     .repo-popup-heading {font-weight:bold;  display:inline-block; min-width:200px; margin-bottom:10px}
+     .key-cell {padding:0px 3px 0px 3px;}
+     .repo {font-weight:bold; border-top:2px solid black; padding-left:5px;}
+     .my-header {height:85px;}
+     .repo-messages {font-weight:normal;}
+     .repo-message {width:100%; border-top:1px solid grey;}
+     .message-header {font-weight:bold; width:100%; float:left;}
+     .message-key {display:inline-block; width:25%; vertical-align:top; padding-left:5px;}
+     .message-english {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}
+     .message-welsh {display:inline-block; width:37%; vertical-align:top; padding-left:5px;}
+     .toggle {}
+     .link-hover:hover {cursor:pointer; color:blue;}
+     #key {margin-left:15px; margin-right:10px; float:right;}
 
-    styleText += ".pull-right {display:inline-block;vertical-align:top;float:right;}";
-    styleText += ".export-as-csv {display:hidden; color:inherit; margin-right:20px; vertical-align:top; text-decoration:underline;}";
-    styleText += "#"+DOM_ID.REFRESH_BUTTON+" {width:20px;position:relative;cursor:pointer;margin:0px 10px 0px 5px;}";
-    styleText += "#expand-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}";
-    styleText += "#collapse-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}";
+     .pull-right {display:inline-block;vertical-align:top;float:right;}
+     .export-as-csv {display:hidden; color:inherit; margin-right:20px; vertical-align:top; text-decoration:underline;}
+     #${DOM_ID.REFRESH_BUTTON} {width:20px;position:relative;cursor:pointer;margin:0px 10px 0px 5px;}
+     #expand-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}
+     #collapse-all {display:inline-block; margin-right:20px; vertical-align:top; text-decoration:underline;}
+  `;
 
   style.innerText = styleText;
   parentNode.appendChild(style);
@@ -252,14 +277,16 @@ function render() {
 
     eachRepo((repoName, data)=>{
         renderRepo(contentDiv, data);
+        hideRepoMessages(repoName); //collapse messages view initially
     });
 }
 
 function eachRepo(fn) {
-    for(var repoName in repoData) {
-      if(!repoData.hasOwnProperty(repoName)) {continue;}
-      fn(repoName, repoData[repoName]);
-    }
+    repoNames.forEach((repoName)=>{
+        if(repoData.hasOwnProperty(repoName)){
+          fn(repoName, repoData[repoName]);
+        }
+    });
 }
 
 
@@ -270,9 +297,11 @@ function toggleRepoMessages(repoName) {
       if(repoMessagesDiv.style.display=="none") {
         repoMessagesDiv.style.display="block";
         toggleSpan.innerHTML = "[-]";
+        toggleSpan.title = "Collapse";
       } else {
         repoMessagesDiv.style.display="none";
         toggleSpan.innerHTML = "[+]";
+        toggleSpan.title = "Expand";
       }
 }
 
@@ -282,6 +311,7 @@ function hideRepoMessages(repoName) {
       const repoMessagesDiv = document.getElementById("repo-messages-"+repoName);
       repoMessagesDiv.style.display="none";
       toggleSpan.innerHTML = "[+]";
+      toggleSpan.title = "Expand";
     }
 }
 
@@ -291,6 +321,7 @@ function showRepoMessages(repoName) {
       const repoMessagesDiv = document.getElementById("repo-messages-"+repoName);
       repoMessagesDiv.style.display="block";
       toggleSpan.innerHTML = "[-]";
+      toggleSpan.title = "Collapse";
     }
 }
 
@@ -378,7 +409,7 @@ function renderRepo(parentElement, data) {
   repoDiv.id = "repo-"+data.repoName;
   repoDiv.className = "repo";
   repoDiv.style.backgroundColor = data.status.colour;
-  var innerHTML = data.repoName;
+  var innerHTML = `${data.repoName} - en:${data.en.count} cy:${data.cy.count}`;
   if(Object.entries(data.messages).length>0) {
       innerHTML += " : <span id=\"toggle-"+data.repoName+"\" data-repo-name=\""+data.repoName+"\" class=\"toggle link-hover\">[-]</span>";
   }
@@ -386,8 +417,14 @@ function renderRepo(parentElement, data) {
   repoDiv.innerHTML = innerHTML;
   parentElement.appendChild(repoDiv);
 
+  if(data.en.fileName || data.cy.fileName) {
+    renderRepoMessagesfileLinks(data.repoName, data.en.fileName, data.cy.fileName);
+  }
+
   for(var [key, message] of Object.entries(data.messages)) {
-    renderRepoMessage(data.repoName, message);
+    if(message!=null && message.key) {
+      renderRepoMessage(data.repoName, message);
+    }
   }
 }
 
@@ -399,19 +436,46 @@ function Message(key, english, welsh){
 }
 
 
+
+function renderRepoMessagesfileLinks(repoName, englishFile, welshFile) {
+    const parentDiv = document.getElementById("repo-messages-"+repoName);
+    const div = document.createElement("div");
+    const divId = "repo-message-"+repoName+"-links";
+    const divEnglishId = divId + "-english";
+    const divWelshId = divId + "-welsh";
+    div.id = divId;
+    div.className = "repo-message";
+    //div.style.backgroundColor = "white";
+    var innerHTML = "<div class=\"message-key\"></div>";
+    const englishFileURL = urlForMessagesFile(repoName, englishFile);
+    const welshFileURL = urlForMessagesFile(repoName, welshFile);
+    const englishFileAnchor = englishFile ? `<a href="${englishFileURL}" target="_blank">Engish Messages File</a>` : "";
+    const welshFileAnchor = englishFile ? `<a href="${welshFileURL}" target="_blank">Welsh Messages File</a>` : "";
+    innerHTML += `<div id="${divEnglishId}" class="message-english">${englishFileAnchor}</div>`;
+    innerHTML += `<div id="${divWelshId}" class="message-welsh">${welshFileAnchor}</div>`;
+    div.innerHTML = innerHTML;
+    parentDiv.appendChild(div);
+}
+
 function renderRepoMessage(repoName, message) {
     const parentDiv = document.getElementById("repo-messages-"+repoName);
     const div = document.createElement("div");
-    div.id = "repo-message-"+repoName+"-"+message.key;
+    const divId = "repo-message-"+repoName+"-"+message.key;
+    const divEnglishId = divId + "-english";
+    const divWelshId = divId + "-welsh";
+    div.id = divId;
     div.className = "repo-message";
+    div.style.backgroundColor = "white";
     if(!message.welsh) {
       div.style.backgroundColor = STATUS.NO_WELSH.colour;
     }
     var innerHTML = "<div class=\"message-key\">"+message.key+"</div>";
-    innerHTML += "<div id=\"repo-message-"+repoName+"-"+message.key+"-english\" class=\"message-english\">"+message.english+"</div>";
-    innerHTML += "<div id=\"repo-message-"+repoName+"-"+message.key+"-welsh\" class=\"message-welsh\">"+message.welsh+"</div>";
+    innerHTML += "<div id=\""+divEnglishId+"\" class=\"message-english\"></div>";
+    innerHTML += "<div id=\""+divWelshId+"\" class=\"message-welsh\"></div>";
     div.innerHTML = innerHTML;
     parentDiv.appendChild(div);
+    document.getElementById(divEnglishId).textContent = message.english;
+    document.getElementById(divWelshId).textContent = message.welsh;
 }
 
 
@@ -451,7 +515,7 @@ function init(){
     function loadMessagesFromRepos(repoNames) {
       repoNames.forEach((repoName)=>{
         loadMessagesForRepo(repoName).then((data)=>{
-          if(data != {}) {
+          if(data != {} && data.messages!={}) {
             repoData[repoName] = data;
           }
           if(processedRepos==repoNames.length) {
@@ -465,41 +529,53 @@ function init(){
       //returns a promise for messages repo data object
       //which looks like {repoName: "", status:STATUS.OK, messages:{key: {english:"", welsh:""}...}}
     function loadMessagesForRepo(repoName) {
-      return parseEnglishMessagesFile(repoName)
-          .then((englishMessages)=>{
-            const messages = {};
-            if(Object.entries(englishMessages).length>0) {
+      return parseEnglishMessagesFile(repoName).then((englishResult)=>{
+            const data = {
+                  repoName: repoName,
+                  status:STATUS.OK,
+                  en:{
+                    count:Object.entries(englishResult.messages).length,
+                    fileName:englishResult.fileName
+                  },
+                  cy:{
+                    count:0,
+                    fileName:""
+                  },
+                  messages:{}
+              };
+            if(Object.entries(englishResult.messages).length>0) {
                 parsedMessagesFiles++;
             }
-            for (const [key, value] of Object.entries(englishMessages)) {
-              messages[key] = {key:key, english:value, welsh:""};
+            for (const [key, value] of Object.entries(englishResult.messages)) {
+              data.messages[key] = {key:key, english:value, welsh:""};
             }
-            return messages;
+            return data;
           })
-          .then((messages)=>{
-            return parseWelshMessagesFile(repoName).then((welshMessages)=>{
-              const data = {repoName: repoName, status:STATUS.OK, messages:{}};
-              if(Object.entries(messages).length==0) {
+          .then((data)=>{
+            return parseWelshMessagesFile(repoName).then((welshResult)=>{
+              data.cy.count = Object.entries(welshResult.messages).length;
+              data.cy.fileName = welshResult.fileName;
+              console.info(`Found ${data.en.count} English and ${data.cy.count} Welsh messages for ${repoName}..`);
+              if(data.en.count==0) {
                 data.status = STATUS.NO_MESSAGES;
               }
-              else if(Object.entries(welshMessages).length==0) {
+              else if(data.cy.count==0) {
                 data.status = STATUS.NO_WELSH;
               }
               else {
                  parsedMessagesFiles++;
-                for (const [key, obj] of Object.entries(messages)) {
-                  if(welshMessages.hasOwnProperty(key)) {
-                    messages[key].welsh = welshMessages[key];
+                for (const [key, obj] of Object.entries(data.messages)) {
+                  if(welshResult.messages.hasOwnProperty(key)) {
+                    data.messages[key].welsh = welshResult.messages[key];
                   }
                   else {
-                    messages[key].welsh = "";
+                    data.messages[key].welsh = "";
                     data.status = STATUS.WELSH_GAPS;
                   }
                 }
               }
               processedRepos++;
-              setHeaderText("Parsed "+parsedMessagesFiles+" messages files from "+processedRepos+"/"+repoNames.length+" repositories.");
-              data.messages = messages;
+              setHeaderText(`Parsed ${parsedMessagesFiles} messages files from ${processedRepos}/${repoNames.length} repositories.`);
               return data;
             });
           })
@@ -508,60 +584,70 @@ function init(){
 
    //returns a promise for an array of Message objects parsed from english messages file
     function parseEnglishMessagesFile(repoName) {
-      return parseMessagesFile(repoName, "messages");
+      return parseMessagesFile(repoName, "messages")
+          .catch((error)=>{
+            return parseMessagesFile(repoName, "messages.en");
+          })
+          .catch((error)=>{
+            return {fileName:"", messages:{}};
+          });
     }
 
       //returns a promise for an array of Message objects parsed from welsh messages file
     function parseWelshMessagesFile(repoName) {
-      return parseMessagesFile(repoName, "messages.cy");
+      return parseMessagesFile(repoName, "messages.cy").catch((error) => {return {fileName:"", messages:{}}});
     }
 
 
-    //returns a promise for an messages objects parsed from a messages file
-    // where messages is of the form {key1: "messageText1", key2: "messageText2"}
+    //returns a promise for {fileName:fileName, messags:messages} where a messages object is parsed from a messages file
+    // and is of the form {key1: "messageText1", key2: "messageText2"}
     function parseMessagesFile(repoName, fileName) {
       return loadFileLinesFromConfFolder(repoName, fileName)
             .then((lines)=>{
               const messages = {};
               try {
-                  console.info("Found "+lines.length+" lines in "+fileName+" for "+repoName+"..");
-                  const cleanedLines = lines.map((line)=>line.trim()).filter((line)=>!line.startsWith("#"));
+                  const cleanedLines = lines.filter((line)=>(typeof line == "string"))
+                    .map((line)=>line.trim())
+                    .filter((line)=>!line.startsWith("#"));
                   cleanedLines.map((line)=>{
-                    const [key, value] = line.split("=");
-                    messages[key.trim()] = value.trim();
+                    const firstEqualsCharPos = line.indexOf('=');
+                    if(firstEqualsCharPos) {
+                        const key = line.substring(0,firstEqualsCharPos);
+                        let value = "";
+                        try {
+                            value = line.substring(firstEqualsCharPos+1);
+                        } catch(e) {
+                            console.warn(`ignoring line ending with '=' : "${line}"`);
+                        }
+                        messages[key.trim()] = value.trim();
+                    }
                   })
-                  return messages;
+                  console.debug("Found "+Object.entries(messages).length+" messages in "+fileName+" for "+repoName+"..");
+                  return {fileName:fileName, messages:messages};
               } catch(e) {
                 console.error("Failed to parse "+fileName+" file from "+repoName);
                 console.error(e);
-                return messages;
+                return {fileName:fileName, messages:messages};
               }
             });
     }
 
 
     function loadFileLinesFromConfFolder(repoName, fileName) {
-      return parseTextFileLinesFromGitHub("https://github.com/hmrc/"+repoName+"/blob/master/conf/"+fileName);
+      return parseTextFileLinesFromGitHub(urlForMessagesFile(repoName, fileName));
     }
+
+    function urlForMessagesFile(repoName, fileName) {
+      return `https://github.com/hmrc/${repoName}/raw/refs/heads/main/conf/${fileName}`
+    }
+
 
     //parses text from given github source page url, returns promise for subscribing to asynch page parsing response
     function parseTextFileLinesFromGitHub(sourcePageUrl, debug) {
-
-        return fetch(sourcePageUrl, {credentials: "include", redirect: "follow"})
-        .then(response => response.text())
+        return fetch(sourcePageUrl, {redirect: "follow"})
+        .then(response => response.ok ? response.text() : Promise.reject(`Error - status:${response.status}`) )
         .then(responseText => {
-            var responseJson = {};
-            var rows = [];
-            try{
-                responseJson = JSON.parse(responseText);
-                try {
-                    rows = responseJson.payload.blob.rawLines;
-                } catch(error) {
-                    console.error(`payload.blob.rawLines array not found in json response from ${sourcePageUrl}.  ${error}`)
-                }
-            } catch {
-                console.warn(`Response from ${sourcePageUrl} is not json.`);
-            }
+            var rows = responseText.split("\n").filter((line)=>!line.startsWith("#") && !line.startsWith("<"));
             return rows;
         })
     }
